@@ -1,115 +1,84 @@
+import { ArrowLeft, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase';
-import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { auth, isFirebaseConfigured } from '../firebase';
+import { getEvent } from '../events';
 
 const AdminLogin = () => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-    const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { eventId } = useParams();
+  const event = getEvent(eventId);
 
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-        try {
-            await signInWithEmailAndPassword(auth, email, password);
-            navigate('/dashboard');
-        } catch {
-            setError('Invalid email or password.');
-        } finally {
-            setLoading(false);
-        }
-    };
+  if (!event) return <Navigate to="/" replace />;
 
-    return (
-        <div className="min-h-dvh bg-[#09090b] flex flex-col items-center justify-center px-5 py-8">
-            <div className="w-full max-w-[380px]">
-                {/* Logo */}
-                <div className="text-center mb-6 sm:mb-8">
-                    <h1 className="text-white text-xl sm:text-2xl font-bold tracking-tight">Vajra</h1>
-                    <p className="text-zinc-500 text-xs sm:text-sm mt-1">Event Management System</p>
-                </div>
+  const handleLogin = async (formEvent: React.FormEvent) => {
+    formEvent.preventDefault();
+    if (!isFirebaseConfigured) return;
 
-                {/* Card */}
-                <div className="bg-[#18181b] rounded-2xl border border-zinc-800 px-5 py-6 sm:px-7 sm:py-8 shadow-lg">
-                    <h2 className="text-white text-base sm:text-lg font-semibold mb-0.5">Welcome back</h2>
-                    <p className="text-zinc-400 text-xs sm:text-sm mb-5 sm:mb-6">Sign in to your account</p>
+    setLoading(true);
+    setError('');
+    try {
+      await signInWithEmailAndPassword(auth!, email.trim(), password);
+      navigate(`/events/${event.id}`);
+    } catch {
+      setError('We could not sign you in. Check the organiser email and password.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-                    {error && (
-                        <div className="mb-4 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-xs sm:text-sm text-red-400 text-center">
-                            {error}
-                        </div>
-                    )}
-
-                    <form onSubmit={handleLogin} className="space-y-4">
-                        <div>
-                            <label className="block text-xs sm:text-sm font-medium text-zinc-300 mb-1.5">
-                                Email
-                            </label>
-                            <input
-                                type="email"
-                                required
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                placeholder="you@example.com"
-                                className="w-full rounded-xl border border-zinc-700 bg-[#09090b] px-3.5 py-3 text-sm text-white placeholder:text-zinc-600 outline-none transition-colors focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs sm:text-sm font-medium text-zinc-300 mb-1.5">
-                                Password
-                            </label>
-                            <div className="relative">
-                                <input
-                                    type={showPassword ? 'text' : 'password'}
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="••••••••"
-                                    className="w-full rounded-xl border border-zinc-700 bg-[#09090b] px-3.5 py-3 pr-11 text-sm text-white placeholder:text-zinc-600 outline-none transition-colors focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                                />
-                                <button
-                                    type="button"
-                                    tabIndex={-1}
-                                    onClick={() => setShowPassword((v) => !v)}
-                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
-                                >
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end">
-                            <button
-                                type="button"
-                                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-                            >
-                                Forgot password?
-                            </button>
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full rounded-xl bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white text-sm font-semibold py-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                            {loading ? <Loader2 className="animate-spin" size={18} /> : 'Sign in'}
-                        </button>
-                    </form>
-                </div>
-
-                <p className="text-center text-[11px] text-zinc-600 mt-5 sm:mt-6">
-                    Secured by Vajra
-                </p>
-            </div>
+  return (
+    <main className="min-h-dvh bg-[#121315] px-5 py-8 text-white sm:grid sm:place-items-center">
+      <section className="mx-auto w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-[#1c1e22] shadow-2xl sm:grid sm:grid-cols-[0.9fr_1.1fr]">
+        <div className={`bg-gradient-to-br ${event.accent} p-7 sm:p-10`}>
+          <button onClick={() => navigate('/')} className="mb-16 inline-flex items-center gap-2 text-sm font-medium text-white/80 transition hover:text-white"><ArrowLeft size={16} /> All events</button>
+          <p className="text-xs font-semibold tracking-[0.18em] text-white/70">E V O K E</p>
+          <h1 className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-white">{event.name}</h1>
+          <p className="mt-4 max-w-sm text-sm leading-6 text-white/80">{event.description}</p>
+          <div className="mt-12 flex items-center gap-3 text-sm text-white/90"><ShieldCheck size={20} /> Organiser access only</div>
         </div>
-    );
+
+        <div className="p-7 sm:p-10">
+          <div className="mb-8">
+            <p className="text-sm font-medium text-[#ff8b5c]">Welcome back</p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight">Sign in to manage the event</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-400">Use your organiser account to access the attendee list, QR scanner, and meal check-offs.</p>
+          </div>
+
+          {!isFirebaseConfigured && (
+            <div className="mb-5 rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100">
+              Firebase is not configured yet. Add the required <code className="rounded bg-black/20 px-1.5 py-0.5 text-xs">VITE_FIREBASE_*</code> variables before organisers can sign in.
+            </div>
+          )}
+
+          {error && <div className="mb-5 rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-200">{error}</div>}
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-200">Email</span>
+              <input value={email} onChange={(input) => setEmail(input.target.value)} type="email" required placeholder="organiser@evoke.in" className="w-full rounded-xl border border-white/10 bg-[#121315] px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-[#ff8b5c] focus:ring-2 focus:ring-[#ff8b5c]/20" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-200">Password</span>
+              <span className="relative block">
+                <input value={password} onChange={(input) => setPassword(input.target.value)} type={showPassword ? 'text' : 'password'} required placeholder="Enter your password" className="w-full rounded-xl border border-white/10 bg-[#121315] px-4 py-3.5 pr-12 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-[#ff8b5c] focus:ring-2 focus:ring-[#ff8b5c]/20" />
+                <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((visible) => !visible)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-500 transition hover:text-white">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+              </span>
+            </label>
+            <button type="submit" disabled={loading || !isFirebaseConfigured} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#ff5a53] py-3.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(255,90,83,0.25)] transition hover:bg-[#ff6a64] disabled:cursor-not-allowed disabled:opacity-50">
+              {loading ? <Loader2 size={18} className="animate-spin" /> : 'Sign in'}
+            </button>
+          </form>
+        </div>
+      </section>
+    </main>
+  );
 };
 
 export default AdminLogin;

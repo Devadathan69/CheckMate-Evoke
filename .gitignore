@@ -1,41 +1,47 @@
-# Dependencies
+# Dependencies and package-manager caches
 node_modules/
+.pnpm-store/
+.yarn/
 
-# Build output
+# Build, test, and generated application artifacts
 dist/
+coverage/
+outputs/
+.vite/
+.eslintcache
+*.tsbuildinfo
 
-# Environment
+# Local environment and credentials
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
-# IDE
+# Firebase local tooling
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Imported event data and generated QR images
+*.xlsx
+*.xls
+*.csv
+member qr codes/
+test_qr_*.png
+
+# Archives and operating-system files
+*.zip
+*.rar
+*.7z
+.DS_Store
+Thumbs.db
+
+# Editor and workspace settings
 .vscode/
 .idea/
 *.swp
 *.swo
+*.swn
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
-
-# Data files
-*.xlsx
-*.csv
-*.xls
-
-# Generated test files
-test_qr_*.png
-member qr codes/
-
-# Archives
-*.rar
-*.zip
-*.7z
-
-# Misc
+# Local agent and tool state
 .gemini/

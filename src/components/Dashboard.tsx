@@ -1,311 +1,259 @@
-
-import { useState, useEffect } from 'react';
-import { db, auth } from '../firebase';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { collection, doc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
+import { AnimatePresence, motion } from 'framer-motion';
+import { CalendarDays, Check, CheckCircle2, ChevronRight, ClipboardCheck, Coffee, DoorOpen, LogOut, QrCode, Search, UsersRound, Utensils, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { auth, db } from '../firebase';
+import { getEvent, type Meal, type MealId } from '../events';
 import QRScanner from './QRScanner';
-import FoodEntry from './FoodEntry';
-import { LogOut, Scan, Hexagon, Terminal, User, Loader2, Search, BarChart3 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 
-const Dashboard = () => {
-    const [activeTab, setActiveTab] = useState<'scan' | 'search' | 'stats'>('scan');
-    const [scannedId, setScannedId] = useState<string | null>(null);
-    const [memberData, setMemberData] = useState<any>(null);
-    const [manualId, setManualId] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [stats, setStats] = useState({ total: 0, registered: 0, breakfast: 0, lunch: 0, dinner: 0 });
-    const [allMembers, setAllMembers] = useState<any[]>([]);
+type CheckInTime = { toDate: () => Date } | null;
 
-    const navigate = useNavigate();
+interface Participant {
+  id: string;
+  name: string;
+  team: string;
+  checkInAt?: CheckInTime;
+  meals?: Partial<Record<MealId, boolean>>;
+}
 
-    useEffect(() => {
-        if (activeTab === 'stats') {
-            fetchStats();
-        }
-    }, [activeTab]);
+type Tab = 'overview' | 'scan' | 'participants';
 
-    const fetchStats = async () => {
-        setLoading(true);
-        try {
-            const querySnapshot = await getDocs(collection(db, "participants"));
-            let total = 0, reg = 0, b = 0, l = 0, d = 0;
-            const members: any[] = [];
+interface DashboardProps {
+  eventId: string;
+}
 
-            querySnapshot.forEach((doc) => {
-                total++;
-                const data = doc.data();
-                if (data.registered) reg++;
-                if (data.breakfast) b++;
-                if (data.lunch) l++;
-                if (data.dinner) d++;
-                members.push({ id: doc.id, ...data });
-            });
-
-            // Sort: Registered first
-            members.sort((a, b) => {
-                if (a.registered === b.registered) return 0;
-                return a.registered ? -1 : 1;
-            });
-
-            setStats({ total, registered: reg, breakfast: b, lunch: l, dinner: d });
-            setAllMembers(members);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleScan = async (scannedData: string) => {
-        if (!scannedData) return;
-
-        // Attempt to extract Member ID if data contains more text (e.g. "Name ID")
-        const idMatch = scannedData.match(/\b(VT[A-Z0-9]+)\b/i);
-        const id = idMatch ? idMatch[0] : scannedData.trim();
-
-        setScannedId(id);
-        setLoading(true);
-        setError('');
-
-        try {
-            const docRef = doc(db, "participants", id);
-            const docSnap = await getDoc(docRef);
-
-            if (docSnap.exists()) {
-                setMemberData(docSnap.data());
-            } else {
-                setError(`Invalid Member ID: ${id}`);
-                setMemberData(null);
-            }
-        } catch (err) {
-            setError('Error fetching data');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleManualSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-        handleScan(manualId);
-    };
-
-    const refreshData = () => {
-        if (scannedId) handleScan(scannedId);
-    };
-
-    const clearScan = () => {
-        setScannedId(null);
-        setMemberData(null);
-        setError('');
-        setManualId('');
-    };
-
-    return (
-        <div className="min-h-screen bg-black-bg relative overflow-hidden pb-24 font-sans">
-            {/* Background Ambience */}
-            <div className="fixed inset-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-deep-purple/10 rounded-full blur-[120px]" />
-                <div className="absolute top-[40%] right-[-10%] w-[500px] h-[500px] bg-neon-cyan/5 rounded-full blur-[100px]" />
-                <div className="absolute bottom-[-10%] left-[20%] w-[400px] h-[400px] bg-neon-purple/10 rounded-full blur-[100px]" />
-            </div>
-
-            {/* Modern Glass Header */}
-            <div className="sticky top-0 z-50 bg-[#0a0a0c]/80 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-neon-purple/20 to-neon-cyan/20 border border-white/10 flex items-center justify-center shadow-[0_0_15px_rgba(191,0,255,0.2)]">
-                        <Hexagon size={20} className="text-white fill-neon-purple/50" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-bold tracking-wide text-white font-orbitron">VAJRA</h1>
-                        <p className="text-[10px] text-neon-cyan font-mono tracking-widest uppercase opacity-80">Event Controller</p>
-                    </div>
-                </div>
-                <button onClick={() => { signOut(auth); navigate('/'); }} className="p-2.5 rounded-xl bg-white/5 hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-all border border-transparent hover:border-red-500/20">
-                    <LogOut size={20} />
-                </button>
-            </div>
-
-            <div className="p-6 max-w-lg mx-auto relative z-10">
-                <AnimatePresence mode="wait">
-                    {scannedId && memberData ? (
-                        <motion.div
-                            key="result"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            className="space-y-6"
-                        >
-                            <button onClick={clearScan} className="text-gray-400 hover:text-white text-xs font-bold font-mono flex items-center gap-2 transition-colors uppercase tracking-widest">
-                                <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-neon-cyan">←</div>
-                                Return to Scanner
-                            </button>
-                            <div className="bg-[#13131a]/80 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 relative overflow-hidden shadow-2xl">
-                                <div className="absolute top-0 right-0 p-8 opacity-5">
-                                    <Terminal size={120} className="text-white" />
-                                </div>
-                                {/* Glow Effect */}
-                                <div className="absolute -top-20 -right-20 w-40 h-40 bg-neon-purple/20 blur-[60px]" />
-
-                                <FoodEntry memberId={scannedId} data={memberData} onUpdate={refreshData} />
-                            </div>
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            key="tabs"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="space-y-8"
-                        >
-                            {error && (
-                                <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    className="p-4 bg-red-500/10 border border-red-500/20 text-red-300 rounded-2xl text-center backdrop-blur-md"
-                                >
-                                    <p className="font-medium text-sm">{error}</p>
-                                    <button onClick={clearScan} className="mt-2 text-xs uppercase tracking-wider font-bold text-red-400 hover:text-white transition-colors border-b border-red-400/30 pb-0.5">Reset System</button>
-                                </motion.div>
-                            )}
-
-                            {activeTab === 'scan' && (
-                                <div className="space-y-8">
-                                    <div className="text-center space-y-2">
-                                        <h2 className="text-3xl font-bold font-orbitron tracking-wide text-white">
-                                            Identity <span className="text-neon-cyan">Scan</span>
-                                        </h2>
-                                        <p className="text-gray-500 text-xs font-mono">ALIGN QR CODE WITHIN FRAME</p>
-                                    </div>
-                                    <QRScanner onScan={handleScan} onClose={() => { }} />
-                                </div>
-                            )}
-
-                            {activeTab === 'search' && (
-                                <div className="bg-[#13131a]/80 backdrop-blur-xl border border-white/10 p-8 rounded-[2rem] relative overflow-hidden shadow-2xl">
-                                    {/* Decorative Blobs */}
-                                    <div className="absolute top-[-50%] left-[-20%] w-[150%] h-[150%] bg-gradient-to-br from-neon-purple/5 to-transparent rounded-full blur-[80px] pointer-events-none" />
-
-                                    <h2 className="text-2xl font-bold mb-6 text-center font-orbitron tracking-wide">
-                                        Manual <span className="text-neon-cyan">Override</span>
-                                    </h2>
-
-                                    <form onSubmit={handleManualSearch} className="space-y-6 relative z-10">
-                                        <div className="relative group">
-                                            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-white transition-colors" size={20} />
-                                            <input
-                                                type="text"
-                                                value={manualId}
-                                                onChange={(e) => setManualId(e.target.value)}
-                                                className="w-full bg-[#0a0a0c] border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/50 focus:shadow-[0_0_15px_rgba(0,247,255,0.15)] transition-all font-mono placeholder:text-gray-700"
-                                                placeholder="ENTER ID (VT-XXX...)"
-                                            />
-                                        </div>
-                                        <motion.button
-                                            whileHover={{ scale: 1.02 }}
-                                            whileTap={{ scale: 0.98 }}
-                                            type="submit"
-                                            disabled={loading}
-                                            className="w-full bg-gradient-to-r from-neon-cyan to-neon-blue text-black font-extrabold py-4 rounded-xl shadow-[0_0_20px_rgba(0,170,255,0.3)] hover:shadow-[0_0_30px_rgba(0,170,255,0.4)] transition-all disabled:opacity-50 flex justify-center items-center gap-2 uppercase tracking-widest font-orbitron text-sm"
-                                        >
-                                            {loading ? <Loader2 className="animate-spin" /> : <><Search size={18} /> Search Database</>}
-                                        </motion.button>
-                                    </form>
-                                </div>
-                            )}
-
-                            {activeTab === 'stats' && (
-                                <div className="space-y-4">
-                                    <div className="bg-gradient-to-br from-[#1a1a24] to-[#0d0d12] p-8 rounded-[2rem] border border-white/5 relative overflow-hidden shadow-2xl group">
-                                        <div className="absolute inset-0 bg-neon-purple/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                                        <p className="text-gray-400 text-xs uppercase tracking-[0.2em] font-bold mb-2 font-orbitron">Total Registration</p>
-                                        <div className="flex items-end gap-3">
-                                            <p className="text-6xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] font-orbitron">{loading ? '...' : stats.registered}</p>
-                                            <p className="text-gray-500 font-mono mb-2">/ {stats.total}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 gap-3">
-                                        <StatCard label="Breakfast" count={stats.breakfast} total={stats.registered} color="text-neon-cyan" loading={loading} idx={1} />
-                                        <StatCard label="Lunch" count={stats.lunch} total={stats.registered} color="text-neon-purple" loading={loading} idx={2} />
-                                        <StatCard label="Dinner" count={stats.dinner} total={stats.registered} color="text-[#ff00ff]" loading={loading} idx={3} />
-                                    </div>
-
-                                    <div className="mt-8 space-y-4">
-                                        <h3 className="text-white font-orbitron text-lg flex items-center gap-2">
-                                            Member Status
-                                            <span className="text-xs bg-white/10 px-2 py-1 rounded-full text-gray-400 font-mono">{allMembers.length}</span>
-                                        </h3>
-                                        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                                            {allMembers.map((member) => (
-                                                <div key={member.id} className="bg-[#13131a]/60 p-4 rounded-xl border border-white/5 flex items-center justify-between hover:bg-[#13131a] transition-colors">
-                                                    <div>
-                                                        <p className="text-white font-bold text-sm">{member.name}</p>
-                                                        <p className="text-[10px] text-gray-500 font-mono">{member.id}</p>
-                                                    </div>
-                                                    {member.registered ? (
-                                                        <span className="text-[10px] font-bold text-green-400 font-mono border border-green-500/20 bg-green-500/10 px-2 py-1 rounded">REGISTERED</span>
-                                                    ) : (
-                                                        <span className="text-[10px] font-bold text-gray-600 font-mono border border-white/5 bg-white/5 px-2 py-1 rounded">PENDING</span>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-
-            {/* Floating Modern Navbar */}
-            {!scannedId && (
-                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-[#13131a]/90 backdrop-blur-xl border border-white/10 rounded-full px-2 py-2 flex items-center gap-1 shadow-2xl z-50">
-                    <TabButton active={activeTab === 'scan'} onClick={() => setActiveTab('scan')} icon={Scan} label="SCAN" />
-                    <TabButton active={activeTab === 'search'} onClick={() => setActiveTab('search')} icon={Search} label="SEARCH" />
-                    <TabButton active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={BarChart3} label="STATS" />
-                </div>
-            )}
-        </div>
-    );
+const formatCheckIn = (checkInAt?: CheckInTime) => {
+  if (!checkInAt) return 'Not checked in';
+  return new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit' }).format(checkInAt.toDate());
 };
 
-const TabButton = ({ active, onClick, icon: Icon, label }: any) => (
-    <button
-        onClick={onClick}
-        className={`px-5 py-3 rounded-full flex items-center gap-2 transition-all duration-300 relative overflow-hidden ${active ? 'bg-white text-black font-bold shadow-[0_0_15px_rgba(255,255,255,0.3)]' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
-    >
-        <div className="relative z-10 flex items-center gap-2">
-            <Icon size={18} strokeWidth={active ? 2.5 : 2} />
-            {active && <span className="text-[10px] font-orbitron tracking-widest">{label}</span>}
+const getParticipantId = (payload: string) => {
+  const match = payload.trim().toUpperCase().match(/\bVEN\d{3}\b/);
+  return match?.[0] ?? payload.trim().toUpperCase();
+};
+
+const Dashboard = ({ eventId }: DashboardProps) => {
+  const event = getEvent(eventId);
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [selected, setSelected] = useState<Participant | null>(null);
+  const [query, setQuery] = useState('');
+  const [manualId, setManualId] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [action, setAction] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const scanLock = useRef(false);
+
+  const participantsCollection = useMemo(() => event && db ? collection(db, 'events', event.id, 'participants') : null, [event]);
+
+  const loadParticipants = useCallback(async () => {
+    if (!participantsCollection) return;
+
+    setLoading(true);
+    try {
+      const snapshot = await getDocs(participantsCollection);
+      const nextParticipants = snapshot.docs
+        .map((participantDoc) => ({ id: participantDoc.id, ...participantDoc.data() } as Participant))
+        .sort((first, second) => first.name.localeCompare(second.name));
+      setParticipants(nextParticipants);
+      setSelected((current) => current ? nextParticipants.find((participant) => participant.id === current.id) ?? null : null);
+      setError('');
+    } catch {
+      setError('The roster could not be loaded. Check the Firebase settings and Firestore access rules.');
+    } finally {
+      setLoading(false);
+    }
+  }, [participantsCollection]);
+
+  useEffect(() => {
+    void loadParticipants();
+  }, [loadParticipants]);
+
+  if (!event) return null;
+
+  const checkedInCount = participants.filter((participant) => Boolean(participant.checkInAt)).length;
+  const mealTotals = Object.fromEntries(event.meals.map((meal) => [meal.id, participants.filter((participant) => participant.meals?.[meal.id]).length])) as Record<MealId, number>;
+  const visibleParticipants = participants.filter((participant) => `${participant.name} ${participant.id} ${participant.team}`.toLowerCase().includes(query.toLowerCase()));
+
+  const openParticipant = (id: string) => {
+    const participant = participants.find((item) => item.id === id);
+    if (!participant) {
+      setError(`No participant was found for ${id}.`);
+      return;
+    }
+    setError('');
+    setSelected(participant);
+  };
+
+  const markCheckIn = async (participant: Participant) => {
+    if (participant.checkInAt || !event) return;
+    setAction(`${participant.id}:checkin`);
+    try {
+      await updateDoc(doc(db!, 'events', event.id, 'participants', participant.id), {
+        checkInAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      await loadParticipants();
+    } catch {
+      setError('Check-in could not be saved. Please try again.');
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const markMeal = async (participant: Participant, mealId: MealId) => {
+    if (!participant.checkInAt || participant.meals?.[mealId] || !event) return;
+    setAction(`${participant.id}:${mealId}`);
+    try {
+      await updateDoc(doc(db!, 'events', event.id, 'participants', participant.id), {
+        [`meals.${mealId}`]: true,
+        updatedAt: serverTimestamp(),
+      });
+      await loadParticipants();
+    } catch {
+      setError('Food attendance could not be saved. Please try again.');
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const handleScan = async (payload: string) => {
+    if (scanLock.current) return;
+    scanLock.current = true;
+    const participantId = getParticipantId(payload);
+    const participant = participants.find((item) => item.id === participantId);
+
+    if (!participant) {
+      setError(`No participant was found for ${participantId}.`);
+      scanLock.current = false;
+      return;
+    }
+
+    setError('');
+    setSelected(participant);
+    if (!participant.checkInAt) await markCheckIn(participant);
+    scanLock.current = false;
+  };
+
+  const handleManualSearch = (formEvent: React.FormEvent) => {
+    formEvent.preventDefault();
+    const participantId = getParticipantId(manualId);
+    openParticipant(participantId);
+  };
+
+  const handleSignOut = async () => {
+    if (auth) await signOut(auth);
+    navigate('/');
+  };
+
+  return (
+    <main className="min-h-dvh bg-[#f4f4f1] text-[#18202a]">
+      <header className="sticky top-0 z-40 border-b border-[#dde0da] bg-[#f4f4f1]/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <button onClick={() => navigate('/')} aria-label="Choose another event" className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#ff5a53] text-sm font-black text-white shadow-[0_8px_22px_rgba(255,90,83,0.24)]">E</button>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold tracking-tight">{event.name}</p>
+              <p className="text-xs text-[#768080]">Evoke organiser console</p>
+            </div>
+          </div>
+          <div className="hidden items-center gap-2 rounded-full border border-[#dde0da] bg-white px-3 py-1.5 text-xs font-medium text-[#59626d] md:flex"><ClipboardCheck size={15} className="text-[#ff5a53]" /> {checkedInCount} of {participants.length} checked in</div>
+          <button onClick={() => void handleSignOut()} className="inline-flex items-center gap-2 rounded-xl border border-[#dde0da] bg-white px-3 py-2 text-sm font-medium text-[#59626d] transition hover:border-red-200 hover:text-[#d9463e]"><LogOut size={16} /><span className="hidden sm:inline">Sign out</span></button>
         </div>
-    </button>
+      </header>
+
+      <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
+        <div className="mb-8 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.18em] text-[#ff5a53]">{event.shortName}</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] sm:text-4xl">Attendance, in one place.</h1>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-[#69727b]">Scan a badge to check in a participant, then record each meal as it is served.</p>
+          </div>
+          <div className="grid grid-cols-3 rounded-2xl border border-[#dde0da] bg-white p-1.5 shadow-sm">
+            <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={ClipboardCheck} label="Overview" />
+            <TabButton active={activeTab === 'scan'} onClick={() => setActiveTab('scan')} icon={QrCode} label="Scan QR" />
+            <TabButton active={activeTab === 'participants'} onClick={() => setActiveTab('participants')} icon={UsersRound} label="Participants" />
+          </div>
+        </div>
+
+        {error && <div className="mb-6 flex items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm text-red-700"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss message"><X size={17} /></button></div>}
+
+        <AnimatePresence mode="wait">
+          {activeTab === 'overview' && (
+            <motion.section key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-7">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                <MetricCard label="Participants" value={participants.length} detail="Rostered" icon={UsersRound} tone="bg-[#18202a] text-white" />
+                <MetricCard label="Checked in" value={checkedInCount} detail={`${participants.length ? Math.round((checkedInCount / participants.length) * 100) : 0}% of roster`} icon={CheckCircle2} tone="bg-[#ff5a53] text-white" />
+                {event.meals.slice(0, 3).map((meal) => <MetricCard key={meal.id} label={meal.label} value={mealTotals[meal.id]} detail={`${meal.date} · ${meal.time}`} icon={meal.id.includes('Tea') ? Coffee : Utensils} tone="bg-white text-[#18202a]" />)}
+              </div>
+
+              <div className="grid gap-7 lg:grid-cols-[1.45fr_0.8fr]">
+                <section className="rounded-[1.75rem] border border-[#dde0da] bg-white p-5 shadow-sm sm:p-6">
+                  <div className="mb-5 flex items-center justify-between gap-4"><div><h2 className="text-lg font-semibold tracking-tight">Participant roster</h2><p className="mt-1 text-sm text-[#75808a]">Check-in and food attendance at a glance.</p></div><button onClick={() => setActiveTab('participants')} className="hidden items-center gap-1 text-sm font-semibold text-[#d9463e] sm:inline-flex">View all <ChevronRight size={16} /></button></div>
+                  <ParticipantTable participants={participants.slice(0, 6)} meals={event.meals} loading={loading} onSelect={setSelected} />
+                  {participants.length > 6 && <button onClick={() => setActiveTab('participants')} className="mt-4 w-full rounded-xl bg-[#f4f4f1] py-3 text-sm font-semibold text-[#59626d] transition hover:bg-[#e9ebe6] sm:hidden">View all participants</button>}
+                </section>
+
+                <ScheduleCard meals={event.meals} totals={mealTotals} />
+              </div>
+            </motion.section>
+          )}
+
+          {activeTab === 'scan' && (
+            <motion.section key="scan" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <section className="rounded-[1.75rem] border border-[#dde0da] bg-white p-5 shadow-sm sm:p-7">
+                <div className="mb-6"><p className="text-xs font-semibold tracking-[0.18em] text-[#ff5a53]">QR CHECK-IN</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Scan the participant badge.</h2><p className="mt-2 text-sm text-[#75808a]">A valid Venture code marks the participant as checked in automatically.</p></div>
+                <QRScanner onScan={(payload) => void handleScan(payload)} onClose={() => setActiveTab('overview')} />
+                <form onSubmit={handleManualSearch} className="mt-6 flex gap-2">
+                  <label className="relative flex-1"><Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8b9399]" /><input value={manualId} onChange={(input) => setManualId(input.target.value)} placeholder="Enter ID, e.g. VEN001" className="w-full rounded-xl border border-[#dde0da] bg-[#f9faf7] py-3 pl-10 pr-3 text-sm outline-none transition placeholder:text-[#a4aaa9] focus:border-[#ff5a53]" /></label>
+                  <button type="submit" className="rounded-xl bg-[#18202a] px-4 text-sm font-semibold text-white transition hover:bg-[#303b47]">Find</button>
+                </form>
+              </section>
+              <ParticipantPanel participant={selected} meals={event.meals} action={action} onClose={() => setSelected(null)} onCheckIn={(participant) => void markCheckIn(participant)} onMeal={(participant, meal) => void markMeal(participant, meal)} />
+            </motion.section>
+          )}
+
+          {activeTab === 'participants' && (
+            <motion.section key="participants" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="grid gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <section className="rounded-[1.75rem] border border-[#dde0da] bg-white p-5 shadow-sm sm:p-7">
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-2xl font-semibold tracking-tight">Participants</h2><p className="mt-2 text-sm text-[#75808a]">Search by person, team, or participant ID.</p></div><label className="relative block sm:w-72"><Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8b9399]" /><input value={query} onChange={(input) => setQuery(input.target.value)} placeholder="Search roster" className="w-full rounded-xl border border-[#dde0da] bg-[#f9faf7] py-3 pl-10 pr-3 text-sm outline-none transition placeholder:text-[#a4aaa9] focus:border-[#ff5a53]" /></label></div>
+                <ParticipantTable participants={visibleParticipants} meals={event.meals} loading={loading} onSelect={setSelected} />
+              </section>
+              <ParticipantPanel participant={selected} meals={event.meals} action={action} onClose={() => setSelected(null)} onCheckIn={(participant) => void markCheckIn(participant)} onMeal={(participant, meal) => void markMeal(participant, meal)} />
+            </motion.section>
+          )}
+        </AnimatePresence>
+      </div>
+    </main>
+  );
+};
+
+const TabButton = ({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof ClipboardCheck; label: string }) => (
+  <button onClick={onClick} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition sm:px-4 sm:text-sm ${active ? 'bg-[#18202a] text-white shadow-sm' : 'text-[#69727b] hover:bg-[#f4f4f1]'}`}><Icon size={16} /><span className="hidden sm:inline">{label}</span></button>
 );
 
-const StatCard = ({ label, count, total, color, loading, idx }: any) => (
-    <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: idx * 0.1 }}
-        className="bg-[#13131a]/60 backdrop-blur-md p-5 rounded-2xl border border-white/5 flex items-center justify-between hover:bg-[#1a1a24] transition-colors group"
-    >
-        <div>
-            <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-1">{label}</p>
-            <p className={`text-2xl font-bold font-mono text-white group-hover:text-glow transition-all`}>{loading ? '...' : count}</p>
-        </div>
-        <div className="relative">
-            <svg className="w-12 h-12 transform -rotate-90">
-                <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-gray-800" />
-                <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={125.6} strokeDashoffset={125.6 - (125.6 * (count / (total || 1)))} className={`${color} transition-all duration-1000 ease-out`} />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[10px] text-gray-500 font-mono">{Math.round((count / (total || 1)) * 100)}%</span>
-            </div>
-        </div>
-    </motion.div>
+const MetricCard = ({ label, value, detail, icon: Icon, tone }: { label: string; value: number; detail: string; icon: typeof UsersRound; tone: string }) => (
+  <article className={`rounded-[1.5rem] border border-[#dde0da] p-5 shadow-sm ${tone}`}><div className="flex items-start justify-between"><p className="text-sm font-medium opacity-70">{label}</p><Icon size={18} className="opacity-70" /></div><p className="mt-6 text-3xl font-semibold tracking-[-0.04em]">{value}</p><p className="mt-1 text-xs opacity-60">{detail}</p></article>
 );
+
+const ScheduleCard = ({ meals, totals }: { meals: Meal[]; totals: Record<MealId, number> }) => (
+  <aside className="rounded-[1.75rem] bg-[#18202a] p-6 text-white shadow-sm"><div className="flex items-center gap-2 text-[#ffb29a]"><CalendarDays size={17} /><p className="text-xs font-semibold tracking-[0.18em]">FOOD SCHEDULE</p></div><h2 className="mt-3 text-xl font-semibold tracking-tight">Service windows</h2><div className="mt-6 space-y-3">{meals.length ? meals.map((meal) => <div key={meal.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-3.5"><div><p className="text-sm font-medium">{meal.label}</p><p className="mt-0.5 text-xs text-slate-400">{meal.date} · {meal.time}</p></div><span className="rounded-lg bg-white/10 px-2.5 py-1 text-sm font-semibold">{totals[meal.id]}</span></div>) : <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm leading-6 text-slate-300">No meal schedule has been added for this event.</p>}</div></aside>
+);
+
+const ParticipantTable = ({ participants, meals, loading, onSelect }: { participants: Participant[]; meals: Meal[]; loading: boolean; onSelect: (participant: Participant) => void }) => {
+  if (loading) return <div className="grid min-h-48 place-items-center text-sm text-[#75808a]">Loading roster…</div>;
+  if (!participants.length) return <div className="rounded-2xl border border-dashed border-[#cbd0c8] bg-[#fafbf8] p-7 text-center text-sm leading-6 text-[#75808a]">No participants are available yet. Import the event roster, then refresh this page.</div>;
+
+  return <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left"><thead className="border-b border-[#e6e8e3] text-xs font-medium text-[#8b9399]"><tr><th className="pb-3">Participant</th><th className="pb-3">Team</th><th className="pb-3">Check-in</th><th className="pb-3">Food marked</th><th className="pb-3" /></tr></thead><tbody>{participants.map((participant) => { const foodCount = meals.filter((meal) => participant.meals?.[meal.id]).length; return <tr key={participant.id} className="border-b border-[#eef0ec] last:border-0"><td className="py-4"><p className="font-semibold text-sm text-[#26313a]">{participant.name}</p><p className="mt-1 font-mono text-[11px] text-[#8b9399]">{participant.id}</p></td><td className="py-4 text-sm text-[#69727b]">{participant.team}</td><td className="py-4"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${participant.checkInAt ? 'bg-[#e7f6e9] text-[#357844]' : 'bg-[#f4f4f1] text-[#8b9399]'}`}>{participant.checkInAt && <Check size={13} />}{formatCheckIn(participant.checkInAt)}</span></td><td className="py-4"><span className="text-sm font-semibold text-[#26313a]">{foodCount}</span><span className="text-xs text-[#8b9399]"> / {meals.length}</span></td><td className="py-4 text-right"><button onClick={() => onSelect(participant)} className="rounded-xl p-2 text-[#69727b] transition hover:bg-[#f4f4f1] hover:text-[#d9463e]" aria-label={`Open ${participant.name}`}><ChevronRight size={18} /></button></td></tr>; })}</tbody></table></div>;
+};
+
+const ParticipantPanel = ({ participant, meals, action, onClose, onCheckIn, onMeal }: { participant: Participant | null; meals: Meal[]; action: string | null; onClose: () => void; onCheckIn: (participant: Participant) => void; onMeal: (participant: Participant, mealId: MealId) => void }) => {
+  if (!participant) return <aside className="hidden min-h-80 place-items-center rounded-[1.75rem] border border-dashed border-[#cbd0c8] bg-[#fafbf8] p-8 text-center xl:grid"><div><div className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#eceee9] text-[#84908a]"><DoorOpen size={22} /></div><h2 className="mt-4 font-semibold text-[#3e4a51]">Select a participant</h2><p className="mt-2 text-sm leading-6 text-[#75808a]">Scan a QR code or choose a participant to manage their attendance.</p></div></aside>;
+
+  return <aside className="rounded-[1.75rem] border border-[#dde0da] bg-white p-6 shadow-sm"><div className="flex items-start justify-between gap-4"><div><p className="font-mono text-xs font-medium text-[#ff5a53]">{participant.id}</p><h2 className="mt-2 text-xl font-semibold tracking-tight">{participant.name}</h2><p className="mt-1 text-sm text-[#75808a]">{participant.team}</p></div><button onClick={onClose} aria-label="Close participant" className="rounded-xl p-2 text-[#8b9399] transition hover:bg-[#f4f4f1] hover:text-[#26313a]"><X size={18} /></button></div><div className={`mt-6 rounded-2xl p-4 ${participant.checkInAt ? 'bg-[#e7f6e9]' : 'bg-[#f4f4f1]'}`}><div className="flex items-center justify-between gap-4"><div><p className="text-sm font-semibold text-[#26313a]">{participant.checkInAt ? 'Checked in' : 'Awaiting check-in'}</p><p className="mt-1 text-xs text-[#69727b]">{formatCheckIn(participant.checkInAt)}</p></div>{participant.checkInAt ? <CheckCircle2 className="text-[#357844]" size={23} /> : <button disabled={action === `${participant.id}:checkin`} onClick={() => onCheckIn(participant)} className="rounded-xl bg-[#18202a] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#303b47] disabled:opacity-50">{action === `${participant.id}:checkin` ? 'Saving…' : 'Check in'}</button>}</div></div><div className="mt-6"><div className="flex items-center justify-between"><h3 className="font-semibold">Food attendance</h3><span className="text-xs text-[#8b9399]">{meals.filter((meal) => participant.meals?.[meal.id]).length} / {meals.length}</span></div><div className="mt-3 space-y-2">{meals.length ? meals.map((meal) => { const served = Boolean(participant.meals?.[meal.id]); const saving = action === `${participant.id}:${meal.id}`; return <button key={meal.id} disabled={!participant.checkInAt || served || saving} onClick={() => onMeal(participant, meal.id)} className={`flex w-full items-center justify-between rounded-xl border p-3 text-left transition ${served ? 'border-[#ccead2] bg-[#e7f6e9] text-[#357844]' : participant.checkInAt ? 'border-[#dde0da] hover:border-[#ffb0aa] hover:bg-[#fff7f5]' : 'cursor-not-allowed border-[#e6e8e3] bg-[#fafbf8] text-[#9ba2a2]'}`}><span><span className="block text-sm font-semibold">{meal.label}</span><span className="mt-0.5 block text-xs opacity-70">{meal.date} · {meal.time}</span></span><span className="text-xs font-semibold">{served ? 'Served' : saving ? 'Saving…' : 'Mark served'}</span></button>; }) : <p className="rounded-xl bg-[#f4f4f1] p-4 text-sm text-[#75808a]">No food windows are configured for this event.</p>}</div>{!participant.checkInAt && meals.length > 0 && <p className="mt-3 text-xs leading-5 text-[#8b9399]">Check the participant in before recording food service.</p>}</div></aside>;
+};
 
 export default Dashboard;

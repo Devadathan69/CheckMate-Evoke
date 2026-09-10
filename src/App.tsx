@@ -1,46 +1,53 @@
 
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
+import { BrowserRouter as Router, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './firebase';
+import { useEffect, useState, type ReactNode } from 'react';
+import { auth, isFirebaseConfigured } from './firebase';
 import AdminLogin from './components/AdminLogin';
 import Dashboard from './components/Dashboard';
+import EventPicker from './components/EventPicker';
 
 const RequireAuth = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(isFirebaseConfigured);
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    if (!isFirebaseConfigured) return undefined;
+
+    return onAuthStateChanged(auth!, (user) => {
+      setSignedIn(Boolean(user));
       setLoading(false);
     });
-    return () => unsubscribe();
   }, []);
 
-  if (loading) return <div className="h-screen bg-black-bg text-white flex items-center justify-center">Loading...</div>;
-
-  if (!user) {
-    return <Navigate to="/" replace />;
+  if (loading) {
+    return <div className="min-h-dvh grid place-items-center bg-[#121315] text-sm text-slate-400">Loading organiser access…</div>;
   }
 
+  if (!signedIn) return <Navigate to="/" replace />;
+
   return children;
+};
+
+const EventDashboardRoute = () => {
+  const { eventId } = useParams();
+  if (!eventId) return <Navigate to="/" replace />;
+
+  return (
+    <RequireAuth>
+      <Dashboard eventId={eventId} />
+    </RequireAuth>
+  );
 };
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<AdminLogin />} />
-        <Route
-          path="/dashboard"
-          element={
-            <RequireAuth>
-              <Dashboard />
-            </RequireAuth>
-          }
-        />
+        <Route path="/" element={<EventPicker />} />
+        <Route path="/login/:eventId" element={<AdminLogin />} />
+        <Route path="/events/:eventId" element={<EventDashboardRoute />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
