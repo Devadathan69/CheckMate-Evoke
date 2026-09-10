@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "seed:venture": "node scripts/seedVentureRoster.js",
+    "seed:venture": "node --env-file=.env.local scripts/seedVentureRoster.js",
     "qr:venture": "node scripts/generateVentureQRZip.js"
   },
   "dependencies": {

@@ -12,7 +12,7 @@ Venture food windows are set to Dinner on 10 September, then Breakfast, Lunch, a
 1. Install packages with `npm install`.
 2. Copy `.env.example` to `.env.local` and add the Firebase web configuration values.
 3. In Firebase Authentication, enable Email/Password and create organiser accounts.
-4. Seed the Venture roster from the supplied workbook. In PowerShell, load the same Firebase values plus `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`, then run:
+4. Add `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` to your ignored `.env.local` file, then seed the Venture roster from the supplied workbook:
 
    ```powershell
    npm run seed:venture -- "C:/Users/devad/Downloads/VENTURE_26_Participant_Attendance-1 (1).xlsx"
