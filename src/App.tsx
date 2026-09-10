@@ -21,7 +21,7 @@ const RequireAuth = ({ children }: { children: ReactNode }) => {
   }, []);
 
   if (loading) {
-    return <div className="min-h-dvh grid place-items-center bg-[#121315] text-sm text-slate-400">Loading organiser access…</div>;
+    return <div className="grid min-h-dvh place-items-center bg-[#17012e] text-sm text-[#d8cae6]">Loading organiser access…</div>;
   }
 
   if (!signedIn) return <Navigate to="/" replace />;

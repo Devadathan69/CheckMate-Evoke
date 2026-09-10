@@ -24,7 +24,7 @@ export const events: EventDefinition[] = [
     shortName: 'VENTURE',
     format: 'Hackathon',
     description: 'Participant check-in and food service control for the Venture hackathon.',
-    accent: 'from-[#ff5a53] to-[#ff8b5c]',
+    accent: 'from-[#8238b3] to-[#17012e]',
     meals: [
       { id: 'ventureDinnerSep10', label: 'Dinner', date: '10 Sep', time: 'Night' },
       { id: 'ventureBreakfastSep11', label: 'Breakfast', date: '11 Sep', time: 'Morning' },
@@ -38,7 +38,7 @@ export const events: EventDefinition[] = [
     shortName: 'EVOKE EXPO',
     format: 'Project expo',
     description: 'A separate organiser workspace for the Evoke project expo roster.',
-    accent: 'from-[#7258f8] to-[#9b7cff]',
+    accent: 'from-[#cca943] to-[#8238b3]',
     meals: [],
   },
 ];
