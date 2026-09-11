@@ -43,6 +43,7 @@ const Dashboard = ({ eventId }: DashboardProps) => {
   const [selected, setSelected] = useState<Participant | null>(null);
   const [isParticipantSheetOpen, setIsParticipantSheetOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [participantCohortFilter, setParticipantCohortFilter] = useState<ParticipantCohort>('evoke');
   const [manualId, setManualId] = useState('');
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<string | null>(null);
@@ -89,7 +90,8 @@ const Dashboard = ({ eventId }: DashboardProps) => {
   const foodMarksForCohort = (cohort: ParticipantCohort) => participants
     .filter((participant) => getParticipantCohort(participant) === cohort)
     .reduce((total, participant) => total + getParticipantMeals(participant).filter((meal) => participant.meals?.[meal.id]).length, 0);
-  const visibleParticipants = participants.filter((participant) => `${participant.name} ${participant.id} ${participant.team}`.toLowerCase().includes(query.toLowerCase()));
+  const participantCountForCohort = (cohort: ParticipantCohort) => participants.filter((participant) => getParticipantCohort(participant) === cohort).length;
+  const visibleParticipants = participants.filter((participant) => getParticipantCohort(participant) === participantCohortFilter && `${participant.name} ${participant.id} ${participant.team}`.toLowerCase().includes(query.toLowerCase()));
 
   const openParticipant = (participant: Participant, fromScan = false) => {
     setError('');
@@ -240,7 +242,8 @@ const Dashboard = ({ eventId }: DashboardProps) => {
           {activeTab === 'participants' && (
             <motion.section key="participants" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
               <section className="border border-white/15 bg-[#21033f]/95 p-4 shadow-[7px_7px_0_rgba(0,0,0,0.22)] sm:p-7">
-                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-2xl font-semibold tracking-tight">Participants</h2><p className="mt-2 text-sm text-[#d8cae6]">Search by person, team, or participant ID.</p></div><label className="relative block sm:w-72"><Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#bdaaca]" /><input value={query} onChange={(input) => setQuery(input.target.value)} placeholder="Search roster" className="w-full border border-white/20 bg-[#17012e] py-3 pl-10 pr-3 text-sm text-[#fcf9ff] outline-none transition placeholder:text-[#917ba0] focus:border-[#55d6c2]" /></label></div>
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-2xl font-semibold tracking-tight">Participants</h2><p className="mt-2 text-sm text-[#d8cae6]">Search by person, team, or participant ID within the selected group.</p></div><label className="relative block sm:w-72"><Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#bdaaca]" /><input value={query} onChange={(input) => setQuery(input.target.value)} placeholder="Search selected group" className="w-full border border-white/20 bg-[#17012e] py-3 pl-10 pr-3 text-sm text-[#fcf9ff] outline-none transition placeholder:text-[#917ba0] focus:border-[#55d6c2]" /></label></div>
+                <nav aria-label="Participant roster sections" className="mb-5 grid grid-cols-2 border border-white/20 bg-[#17012e] p-1.5 sm:max-w-md"><CohortButton active={participantCohortFilter === 'evoke'} onClick={() => setParticipantCohortFilter('evoke')} label="Evoke" count={participantCountForCohort('evoke')} /><CohortButton active={participantCohortFilter === 'venture'} onClick={() => setParticipantCohortFilter('venture')} label="Venture" count={participantCountForCohort('venture')} /></nav>
                 <ParticipantTable participants={visibleParticipants} getMeals={getParticipantMeals} loading={loading} onSelect={openParticipant} />
               </section>
             </motion.section>
@@ -259,6 +262,10 @@ const Dashboard = ({ eventId }: DashboardProps) => {
 
 const TabButton = ({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: LucideIcon; label: string }) => (
   <button onClick={onClick} className={`flex min-w-0 items-center justify-center gap-2 px-2.5 py-2.5 text-xs font-semibold transition sm:px-4 sm:text-sm ${active ? 'bg-[#cca943] text-[#17012e] shadow-[3px_3px_0_rgba(0,0,0,0.25)]' : 'text-[#d8cae6] hover:bg-white/10 hover:text-[#55d6c2]'}`}><Icon size={16} /><span className="hidden sm:inline">{label}</span></button>
+);
+
+const CohortButton = ({ active, onClick, label, count }: { active: boolean; onClick: () => void; label: string; count: number }) => (
+  <button onClick={onClick} className={`flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold transition ${active ? 'bg-[#8238b3] text-white shadow-[3px_3px_0_rgba(0,0,0,0.25)]' : 'text-[#d8cae6] hover:bg-white/10 hover:text-[#55d6c2]'}`}><span>{label}</span><span className={`border px-1.5 py-0.5 font-['DM_Mono'] text-[10px] ${active ? 'border-white/35 bg-white/10' : 'border-white/20'}`}>{count}</span></button>
 );
 
 const MetricCard = ({ label, value, detail, icon: Icon, tone }: { label: string; value: number; detail: string; icon: LucideIcon; tone: string }) => (
