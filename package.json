@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "seed:venture": "node --env-file=.env.local scripts/seedVentureRoster.js",
     "qr:venture": "node scripts/generateVentureQRZip.js",
+    "migrate:venture-to-evoke": "node --env-file=.env.local scripts/migrateVentureIntoEvoke.js",
     "seed:evoke": "node --env-file=.env.local scripts/seedEvokeRoster.js",
     "qr:evoke": "node scripts/generateEvokeQRZip.js"
   },

@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Navigate, Route, Routes, useParams } from 'rea
 import { onAuthStateChanged } from 'firebase/auth';
 import { useEffect, useState, type ReactNode } from 'react';
 import { auth, isFirebaseConfigured } from './firebase';
+import { getEvent } from './events';
 import AdminLogin from './components/AdminLogin';
 import Dashboard from './components/Dashboard';
 import EventPicker from './components/EventPicker';
@@ -31,7 +32,7 @@ const RequireAuth = ({ children }: { children: ReactNode }) => {
 
 const EventDashboardRoute = () => {
   const { eventId } = useParams();
-  if (!eventId) return <Navigate to="/" replace />;
+  if (!eventId || !getEvent(eventId)) return <Navigate to="/" replace />;
 
   return (
     <RequireAuth>
