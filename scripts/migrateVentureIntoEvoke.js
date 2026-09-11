@@ -47,7 +47,9 @@ try {
       name: String(source.name ?? '').trim(),
       team: String(source.team ?? '').trim() || 'Unassigned',
       eventId: 'evoke-expo',
+      cohort: 'venture',
       checkInAt: existing?.checkInAt ?? source.checkInAt ?? null,
+      meals: { ...(existing?.meals ?? {}), ...(source.meals ?? {}) },
       updatedAt: serverTimestamp(),
     }, { merge: true }));
   }

@@ -2,6 +2,8 @@
 
 Evoke is a mobile-friendly organiser console with one unified participant roster. It contains confirmed Evoke RSVP participants and the completed Venture Hackathon cohort. Existing Venture QR codes (`VEN001`, for example) continue to work in the Evoke scanner.
 
+Food windows remain specific to each cohort. Venture participants retain Dinner on 10 September, then Breakfast, Lunch, and Evening tea on 11 September. Evoke participants use Breakfast, Lunch, Evening tea, and Snacks on 11 September.
+
 ## Local setup
 
 1. Install packages with `npm install`.
@@ -15,7 +17,7 @@ Evoke is a mobile-friendly organiser console with one unified participant roster
 
    The Evoke importer only includes attendees whose RSVP is `Yes`, assigns IDs in workbook order from `EVK001`, and merges name/team changes without resetting attendance.
 
-5. Run the one-time Venture migration to add its participants to the same Evoke roster. It copies each original check-in timestamp and does not alter the historical Venture collection:
+5. Run the one-time Venture migration to add its participants to the same Evoke roster. It copies each original check-in timestamp and food attendance flag, and does not alter the historical Venture collection:
 
    ```powershell
    npm run migrate:venture-to-evoke
@@ -25,7 +27,7 @@ Evoke is a mobile-friendly organiser console with one unified participant roster
 
 ## Firestore model
 
-The active roster is stored at `events/evoke-expo/participants/{participantId}`. It includes `EVK` and migrated `VEN` participant IDs. The migration preserves all original Venture check-in timestamps; re-running it does not change the historical `events/venture` collection.
+The active roster is stored at `events/evoke-expo/participants/{participantId}`. It includes `EVK` and migrated `VEN` participant IDs. Each record has an `evoke` or `venture` cohort so the organiser sees only the relevant food windows. The migration preserves all original Venture check-in timestamps and food attendance; re-running it does not change the historical `events/venture` collection.
 
 ## Firestore access rules
 

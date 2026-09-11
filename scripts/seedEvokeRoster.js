@@ -40,6 +40,7 @@ try {
     await write(() => batch.set(doc(db, 'events', 'evoke-expo', 'participants', participant.id), {
       ...participant,
       eventId: 'evoke-expo',
+      cohort: 'evoke',
       updatedAt: serverTimestamp(),
     }, { merge: true }));
   }

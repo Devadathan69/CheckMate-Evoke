@@ -6,7 +6,7 @@ import { CalendarDays, Check, CheckCircle2, ChevronRight, ClipboardCheck, Coffee
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
-import { getEvent, type Meal, type MealId } from '../events';
+import { getEvent, type Meal, type MealId, type ParticipantCohort } from '../events';
 import QRScanner from './QRScanner';
 
 type CheckInTime = { toDate: () => Date } | null;
@@ -16,6 +16,7 @@ interface Participant {
   id: string;
   name: string;
   team: string;
+  cohort?: ParticipantCohort;
   checkInAt?: CheckInTime;
   meals?: Partial<Record<MealId, boolean>>;
 }
@@ -78,10 +79,16 @@ const Dashboard = ({ eventId }: DashboardProps) => {
 
   if (!event) return null;
 
+  const getParticipantCohort = (participant: Participant): ParticipantCohort => participant.cohort === 'venture' || participant.id.startsWith('VEN') ? 'venture' : 'evoke';
+  const getParticipantMeals = (participant: Participant) => event.mealsByCohort[getParticipantCohort(participant)];
+  const allMeals = Object.values(event.mealsByCohort).flat();
   const checkedInCount = participants.filter((participant) => Boolean(participant.checkInAt)).length;
   const mealTotals = Object.fromEntries(
-    event.meals.map((meal) => [meal.id, participants.filter((participant) => participant.meals?.[meal.id]).length]),
+    allMeals.map((meal) => [meal.id, participants.filter((participant) => participant.meals?.[meal.id]).length]),
   ) as Record<MealId, number>;
+  const foodMarksForCohort = (cohort: ParticipantCohort) => participants
+    .filter((participant) => getParticipantCohort(participant) === cohort)
+    .reduce((total, participant) => total + getParticipantMeals(participant).filter((meal) => participant.meals?.[meal.id]).length, 0);
   const visibleParticipants = participants.filter((participant) => `${participant.name} ${participant.id} ${participant.team}`.toLowerCase().includes(query.toLowerCase()));
 
   const openParticipant = (participant: Participant, fromScan = false) => {
@@ -199,19 +206,20 @@ const Dashboard = ({ eventId }: DashboardProps) => {
         <AnimatePresence mode="wait">
           {activeTab === 'overview' && (
             <motion.section key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-5 sm:space-y-7">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricCard label="Participants" value={participants.length} detail="Rostered" icon={UsersRound} tone="bg-[#21033f] border-white/15 text-[#fcf9ff]" />
                 <MetricCard label="Checked in" value={checkedInCount} detail={`${participants.length ? Math.round((checkedInCount / participants.length) * 100) : 0}% of roster`} icon={CheckCircle2} tone="bg-[#8238b3] border-[#b66ee7]/50 text-white" />
-                {event.meals.slice(0, 3).map((meal) => <MetricCard key={meal.id} label={meal.label} value={mealTotals[meal.id]} detail={`${meal.date} · ${meal.time}`} icon={meal.id.includes('Tea') ? Coffee : Utensils} tone="bg-[#fcf9ff] border-[#f1d46c] text-[#21033f]" />)}
+                <MetricCard label="Venture food marked" value={foodMarksForCohort('venture')} detail="Original food attendance" icon={Utensils} tone="bg-[#fcf9ff] border-[#f1d46c] text-[#21033f]" />
+                <MetricCard label="Evoke food marked" value={foodMarksForCohort('evoke')} detail="11 Sep service windows" icon={Coffee} tone="bg-[#fcf9ff] border-[#f1d46c] text-[#21033f]" />
               </div>
 
               <div className="grid gap-5 lg:grid-cols-[1.45fr_0.8fr] lg:gap-7">
                 <section className="border border-white/15 bg-[#21033f]/95 p-4 shadow-[7px_7px_0_rgba(0,0,0,0.22)] sm:p-6">
                   <div className="mb-5 flex items-center justify-between gap-4"><div><h2 className="text-lg font-semibold tracking-tight">Participant roster</h2><p className="mt-1 text-sm text-[#d8cae6]">Check-in and food attendance at a glance.</p></div><button onClick={() => setActiveTab('participants')} className="hidden items-center gap-1 text-sm font-semibold text-[#55d6c2] sm:inline-flex">View all <ChevronRight size={16} /></button></div>
-                  <ParticipantTable participants={participants.slice(0, 6)} meals={event.meals} loading={loading} onSelect={openParticipant} />
+                  <ParticipantTable participants={participants.slice(0, 6)} getMeals={getParticipantMeals} loading={loading} onSelect={openParticipant} />
                   {participants.length > 6 && <button onClick={() => setActiveTab('participants')} className="mt-4 w-full border border-white/15 bg-white/5 py-3 text-sm font-semibold text-[#fcf9ff] transition hover:border-[#55d6c2] sm:hidden">View all participants</button>}
                 </section>
-                <ScheduleCard meals={event.meals} totals={mealTotals} />
+                <ScheduleCard mealGroups={event.mealsByCohort} totals={mealTotals} />
               </div>
             </motion.section>
           )}
@@ -233,7 +241,7 @@ const Dashboard = ({ eventId }: DashboardProps) => {
             <motion.section key="participants" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
               <section className="border border-white/15 bg-[#21033f]/95 p-4 shadow-[7px_7px_0_rgba(0,0,0,0.22)] sm:p-7">
                 <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-2xl font-semibold tracking-tight">Participants</h2><p className="mt-2 text-sm text-[#d8cae6]">Search by person, team, or participant ID.</p></div><label className="relative block sm:w-72"><Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#bdaaca]" /><input value={query} onChange={(input) => setQuery(input.target.value)} placeholder="Search roster" className="w-full border border-white/20 bg-[#17012e] py-3 pl-10 pr-3 text-sm text-[#fcf9ff] outline-none transition placeholder:text-[#917ba0] focus:border-[#55d6c2]" /></label></div>
-                <ParticipantTable participants={visibleParticipants} meals={event.meals} loading={loading} onSelect={openParticipant} />
+                <ParticipantTable participants={visibleParticipants} getMeals={getParticipantMeals} loading={loading} onSelect={openParticipant} />
               </section>
             </motion.section>
           )}
@@ -242,7 +250,7 @@ const Dashboard = ({ eventId }: DashboardProps) => {
 
       <AnimatePresence>
         {isParticipantSheetOpen && selected && (
-          <ParticipantSheet participant={selected} meals={event.meals} action={action} onClose={closeParticipantSheet} onCheckIn={(participant) => void markCheckIn(participant)} onMeal={(participant, meal) => void markMeal(participant, meal)} />
+          <ParticipantSheet participant={selected} cohort={getParticipantCohort(selected)} meals={getParticipantMeals(selected)} action={action} onClose={closeParticipantSheet} onCheckIn={(participant) => void markCheckIn(participant)} onMeal={(participant, meal) => void markMeal(participant, meal)} />
         )}
       </AnimatePresence>
     </main>
@@ -257,28 +265,29 @@ const MetricCard = ({ label, value, detail, icon: Icon, tone }: { label: string;
   <article className={`border p-5 shadow-[5px_5px_0_rgba(0,0,0,0.2)] ${tone}`}><div className="flex items-start justify-between"><p className="text-sm font-medium opacity-70">{label}</p><Icon size={18} className="opacity-70" /></div><p className="mt-6 text-3xl font-semibold tracking-[-0.04em]">{value}</p><p className="mt-1 text-xs opacity-60">{detail}</p></article>
 );
 
-const ScheduleCard = ({ meals, totals }: { meals: Meal[]; totals: Record<MealId, number> }) => (
-  <aside className="border border-[#8238b3] bg-[#17012e] p-5 text-white shadow-[7px_7px_0_rgba(0,0,0,0.25)] sm:p-6"><div className="flex items-center gap-2 text-[#55d6c2]"><CalendarDays size={17} /><p className="font-['DM_Mono'] text-xs font-semibold tracking-[0.18em]">FOOD SCHEDULE</p></div><h2 className="mt-3 text-xl font-semibold tracking-tight">Service windows</h2><div className="mt-6 space-y-3">{meals.length ? meals.map((meal) => <div key={meal.id} className="flex items-center justify-between border border-white/15 bg-white/5 p-3.5"><div><p className="text-sm font-medium">{meal.label}</p><p className="mt-0.5 text-xs text-[#c8b4d6]">{meal.date} · {meal.time}</p></div><span className="border border-[#55d6c2]/40 bg-[#55d6c2]/10 px-2.5 py-1 text-sm font-semibold text-[#55d6c2]">{totals[meal.id]}</span></div>) : <p className="border border-white/10 bg-white/5 p-4 text-sm leading-6 text-[#d8cae6]">No meal schedule has been added for this event.</p>}</div></aside>
+const ScheduleCard = ({ mealGroups, totals }: { mealGroups: Record<ParticipantCohort, Meal[]>; totals: Record<MealId, number> }) => (
+  <aside className="border border-[#8238b3] bg-[#17012e] p-5 text-white shadow-[7px_7px_0_rgba(0,0,0,0.25)] sm:p-6"><div className="flex items-center gap-2 text-[#55d6c2]"><CalendarDays size={17} /><p className="font-['DM_Mono'] text-xs font-semibold tracking-[0.18em]">FOOD SCHEDULE</p></div><h2 className="mt-3 text-xl font-semibold tracking-tight">Service windows</h2><div className="mt-6 space-y-5">{(Object.entries(mealGroups) as [ParticipantCohort, Meal[]][]).map(([cohort, meals]) => <section key={cohort}><p className="mb-2 font-['DM_Mono'] text-[11px] font-medium tracking-[0.16em] text-[#f1d46c]">{cohort === 'venture' ? 'VENTURE HACKATHON' : 'EVOKE 2026'}</p><div className="space-y-2">{meals.map((meal) => <div key={meal.id} className="flex items-center justify-between border border-white/15 bg-white/5 p-3"><div><p className="text-sm font-medium">{meal.label}</p><p className="mt-0.5 text-xs text-[#c8b4d6]">{meal.date} · {meal.time}</p></div><span className="border border-[#55d6c2]/40 bg-[#55d6c2]/10 px-2.5 py-1 text-sm font-semibold text-[#55d6c2]">{totals[meal.id]}</span></div>)}</div></section>)}</div></aside>
 );
 
-const ParticipantTable = ({ participants, meals, loading, onSelect }: { participants: Participant[]; meals: Meal[]; loading: boolean; onSelect: (participant: Participant) => void }) => {
+const ParticipantTable = ({ participants, getMeals, loading, onSelect }: { participants: Participant[]; getMeals: (participant: Participant) => Meal[]; loading: boolean; onSelect: (participant: Participant) => void }) => {
   if (loading) return <div className="grid min-h-48 place-items-center text-sm text-[#d8cae6]">Loading roster…</div>;
   if (!participants.length) return <div className="border border-dashed border-white/25 bg-white/5 p-7 text-center text-sm leading-6 text-[#d8cae6]">No participants are available yet. Import the event roster, then refresh this page.</div>;
 
   return <>
     <div className="space-y-2 md:hidden">{participants.map((participant) => {
+      const meals = getMeals(participant);
       const foodCount = meals.filter((meal) => participant.meals?.[meal.id]).length;
       return <button key={participant.id} onClick={() => onSelect(participant)} className="w-full border border-white/15 bg-[#17012e]/60 p-3 text-left transition hover:border-[#55d6c2]"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-[#fcf9ff]">{participant.name}</p><p className="mt-1 font-['DM_Mono'] text-[11px] text-[#55d6c2]">{participant.id}</p></div><ChevronRight className="mt-1 shrink-0 text-[#f1d46c]" size={18} /></div><div className="mt-3 flex flex-wrap items-center gap-2 text-xs"><span className={`inline-flex items-center gap-1 border px-2 py-1 ${participant.checkInAt ? 'border-[#55d6c2]/45 bg-[#55d6c2]/10 text-[#55d6c2]' : 'border-white/15 text-[#c8b4d6]'}`}>{participant.checkInAt && <Check size={12} />}{participant.checkInAt ? 'Checked in' : 'Not checked in'}</span><span className="text-[#c8b4d6]">{foodCount} / {meals.length} meals</span></div></button>;
     })}</div>
-    <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[650px] text-left"><thead className="border-b border-white/15 text-xs font-medium text-[#bdaaca]"><tr><th className="pb-3">Participant</th><th className="pb-3">Team</th><th className="pb-3">Check-in</th><th className="pb-3">Food marked</th><th className="pb-3" /></tr></thead><tbody>{participants.map((participant) => { const foodCount = meals.filter((meal) => participant.meals?.[meal.id]).length; return <tr key={participant.id} className="border-b border-white/10 last:border-0"><td className="py-4"><p className="text-sm font-semibold text-[#fcf9ff]">{participant.name}</p><p className="mt-1 font-['DM_Mono'] text-[11px] text-[#55d6c2]">{participant.id}</p></td><td className="py-4 text-sm text-[#d8cae6]">{participant.team}</td><td className="py-4"><span className={`inline-flex items-center gap-1.5 border px-2.5 py-1 text-xs font-medium ${participant.checkInAt ? 'border-[#55d6c2]/45 bg-[#55d6c2]/10 text-[#55d6c2]' : 'border-white/15 bg-white/5 text-[#c8b4d6]'}`}>{participant.checkInAt && <Check size={13} />}{formatCheckIn(participant.checkInAt)}</span></td><td className="py-4"><span className="text-sm font-semibold text-[#fcf9ff]">{foodCount}</span><span className="text-xs text-[#bdaaca]"> / {meals.length}</span></td><td className="py-4 text-right"><button onClick={() => onSelect(participant)} className="p-2 text-[#d8cae6] transition hover:bg-white/10 hover:text-[#55d6c2]" aria-label={`Open ${participant.name}`}><ChevronRight size={18} /></button></td></tr>; })}</tbody></table></div>
+    <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[650px] text-left"><thead className="border-b border-white/15 text-xs font-medium text-[#bdaaca]"><tr><th className="pb-3">Participant</th><th className="pb-3">Team</th><th className="pb-3">Check-in</th><th className="pb-3">Food marked</th><th className="pb-3" /></tr></thead><tbody>{participants.map((participant) => { const meals = getMeals(participant); const foodCount = meals.filter((meal) => participant.meals?.[meal.id]).length; return <tr key={participant.id} className="border-b border-white/10 last:border-0"><td className="py-4"><p className="text-sm font-semibold text-[#fcf9ff]">{participant.name}</p><p className="mt-1 font-['DM_Mono'] text-[11px] text-[#55d6c2]">{participant.id}</p></td><td className="py-4 text-sm text-[#d8cae6]">{participant.team}</td><td className="py-4"><span className={`inline-flex items-center gap-1.5 border px-2.5 py-1 text-xs font-medium ${participant.checkInAt ? 'border-[#55d6c2]/45 bg-[#55d6c2]/10 text-[#55d6c2]' : 'border-white/15 bg-white/5 text-[#c8b4d6]'}`}>{participant.checkInAt && <Check size={13} />}{formatCheckIn(participant.checkInAt)}</span></td><td className="py-4"><span className="text-sm font-semibold text-[#fcf9ff]">{foodCount}</span><span className="text-xs text-[#bdaaca]"> / {meals.length}</span></td><td className="py-4 text-right"><button onClick={() => onSelect(participant)} className="p-2 text-[#d8cae6] transition hover:bg-white/10 hover:text-[#55d6c2]" aria-label={`Open ${participant.name}`}><ChevronRight size={18} /></button></td></tr>; })}</tbody></table></div>
   </>;
 };
 
-const ParticipantSheet = ({ participant, meals, action, onClose, onCheckIn, onMeal }: { participant: Participant; meals: Meal[]; action: string | null; onClose: () => void; onCheckIn: (participant: Participant) => void; onMeal: (participant: Participant, mealId: MealId) => void }) => (
+const ParticipantSheet = ({ participant, cohort, meals, action, onClose, onCheckIn, onMeal }: { participant: Participant; cohort: ParticipantCohort; meals: Meal[]; action: string | null; onClose: () => void; onCheckIn: (participant: Participant) => void; onMeal: (participant: Participant, mealId: MealId) => void }) => (
   <motion.div className="fixed inset-0 z-50 flex items-end bg-[#090012]/75 p-0 backdrop-blur-sm sm:items-center sm:justify-center sm:p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
     <motion.aside role="dialog" aria-modal="true" aria-labelledby="participant-title" className="max-h-[90dvh] w-full overflow-y-auto border border-[#f1d46c]/60 bg-[#21033f] p-5 shadow-[10px_10px_0_rgba(0,0,0,0.32)] sm:max-w-lg sm:p-6" initial={{ y: 32, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 32, opacity: 0 }} transition={{ type: 'spring', damping: 25, stiffness: 280 }} onMouseDown={(event) => event.stopPropagation()}>
       <div className="mx-auto mb-5 h-1 w-10 bg-[#f1d46c]/70 sm:hidden" />
-      <div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="font-['DM_Mono'] text-xs font-medium text-[#55d6c2]">{participant.id}</p><h2 id="participant-title" className="mt-2 truncate text-2xl font-semibold tracking-tight text-[#fcf9ff]">{participant.name}</h2><p className="mt-1 text-sm text-[#d8cae6]">{participant.team}</p></div><button onClick={onClose} aria-label="Close participant details" className="shrink-0 border border-white/15 p-2 text-[#d8cae6] transition hover:border-[#55d6c2] hover:text-[#55d6c2]"><X size={18} /></button></div>
+      <div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="font-['DM_Mono'] text-xs font-medium text-[#55d6c2]">{participant.id}</p><h2 id="participant-title" className="mt-2 truncate text-2xl font-semibold tracking-tight text-[#fcf9ff]">{participant.name}</h2><p className="mt-1 text-sm text-[#d8cae6]">{participant.team}</p><span className="mt-3 inline-flex border border-[#f1d46c]/45 bg-[#f1d46c]/10 px-2 py-1 font-['DM_Mono'] text-[10px] font-medium tracking-[0.12em] text-[#f1d46c]">{cohort === 'venture' ? 'VENTURE FOOD WINDOWS' : 'EVOKE FOOD WINDOWS'}</span></div><button onClick={onClose} aria-label="Close participant details" className="shrink-0 border border-white/15 p-2 text-[#d8cae6] transition hover:border-[#55d6c2] hover:text-[#55d6c2]"><X size={18} /></button></div>
 
       <div className={`mt-6 border p-4 ${participant.checkInAt ? 'border-[#55d6c2]/50 bg-[#55d6c2]/10' : 'border-[#f1d46c]/45 bg-[#cca943]/10'}`}><div className="flex items-center justify-between gap-4"><div><p className="text-sm font-semibold text-[#fcf9ff]">{participant.checkInAt ? 'Checked in' : 'Ready to check in'}</p><p className="mt-1 text-xs text-[#d8cae6]">{formatCheckIn(participant.checkInAt)}</p></div>{participant.checkInAt ? <CheckCircle2 className="text-[#55d6c2]" size={24} /> : <button disabled={action === `${participant.id}:checkin`} onClick={() => onCheckIn(participant)} className="border border-[#f1d46c] bg-[#cca943] px-4 py-2.5 text-sm font-bold text-[#17012e] transition hover:bg-[#f1d46c] disabled:opacity-50">{action === `${participant.id}:checkin` ? 'Saving…' : 'Check in'}</button>}</div></div>
 
